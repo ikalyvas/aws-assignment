@@ -52,6 +52,44 @@ aws --endpoint-url http://localhost:4566 stepfunctions list-state-machines
 aws --endpoint-url http://localhost:4566 dynamodb scan --table-name Files
 ```
 
+## Solution
+### Terraform
+I have used terraform to create the resources. The terraform code is in the terraform folder.
+```shell
+cd terraform #(or assuming you are already in the terraform folder)
+terraform init #(i have used a local backend, so you don't need to configure a remote backend. However, in a real world scenario, you should use a remote backend. I put a reference to a s3 backend in the backend)
+terraform plan
+terraform apply -auto-approve
+```
+Then you can upload a file to the bucket and check the dynamodb table to see if the file name is there.
+```shell
+aws --endpoint-url http://localhost:4566 s3 cp README.md s3://my-upload-bucket/
+```
+Response:
+```text
+upload: ./README.md to s3://my-upload-bucket/README.md
+```
+```shell
+aws --endpoint-url http://localhost:4566 dynamodb scan --table-name Files
+```
+Response:
+```json
+{
+    "Items": [
+        {
+            "FileName": {
+                "S": "README.md"
+            }
+        }
+    ],
+    "Count": 1,
+    "ScannedCount": 1,
+    "ConsumedCapacity": null
+}
+```
+
+
+
 
 ## Terratest
 I have included an example of how to use terratest to test the terraform code.
