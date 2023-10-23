@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Cloudformation template for creating AWS S3 Bucket
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Name for s3 bucket (Name must begin and end with a letter or number and consist only of lowercase letters, numbers, and hyphens (-).)
+    AllowedPattern: (?=^.{3,63}$)^[a-z0-9][a-z0-9-]*[a-z0-9]
+    ConstraintDescription: Name must begin and end with a letter or number and consist only of lowercase letters, numbers, and hyphens (-).
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Sub ${BucketName}
+      LoggingConfiguration:
+        DestinationBucketName: !Ref TargetLogsBucket
+        LogFilePrefix: testing-logs
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  TargetLogsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TargetLogsBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 's3:PutObject'
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref TargetLogsBucket
+                - /*
+            Condition:
+              ArnLike:
+                'aws:SourceArn': !GetAtt
+                  - S3Bucket
+                  - Arn
+              StringEquals:
+                'aws:SourceAccount': !Sub '${AWS::AccountId}'
+  SourceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Statement:
+          - Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${BucketName}/*
+              - !Sub arn:aws:s3:::${BucketName}
+            Principal: "arn:aws:iam::0000000000:root"
+            Sid: AllowPublicRead
+        Version: 2012-10-17
+
+
+  TargetLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${BucketName}-logs
+      # the target bucket does not need to have access logging enabled, therefore we can ignore the following lines
+      #LoggingConfiguration:
+      #  DestinationBucketName: !Ref TargetLogsBucket
+      #  LogFilePrefix: testing-logs
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+Outputs:
+  BucketARN:
+    Description: The arn for the bucket that got created
+    Value: !GetAtt S3Bucket.Arn
