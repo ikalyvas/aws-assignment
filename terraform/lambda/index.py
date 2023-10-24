@@ -8,6 +8,9 @@ import logging
 
 sfn_client = boto3.client("stepfunctions", endpoint_url="http://localstack:4566", region_name="eu-central-1")
 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
 
 def generate_execution_name():
     unique_id = str(uuid.uuid4())
@@ -17,7 +20,6 @@ def generate_execution_name():
 
 
 def lambda_handler(event, context):
-    # Assuming the event contains information about the uploaded file
     s3_bucket = event["Records"][0]["s3"]["bucket"]["name"]
     s3_object_key = event["Records"][0]["s3"]["object"]["key"]
 
@@ -26,8 +28,8 @@ def lambda_handler(event, context):
         "fileName": s3_object_key
     }
 
-    print(f"Input Data: {input_data}")
-    print(f"Event: {event}")
+    logger.info(f"Input Data: {input_data}")
+    logger.info(f"Event: {event}")
 
     # Define the Step Function's ARN
     state_machine_arn = os.environ.get("SM_ARN")
@@ -40,7 +42,7 @@ def lambda_handler(event, context):
     )
 
     # Log the response for debugging
-    logging.info(f"Step Function Execution Response: {response}")
+    logger.info(f"Step Function Execution Response: {response}")
 
     return {
         "statusCode": 200,

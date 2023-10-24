@@ -46,6 +46,33 @@ data "aws_iam_policy_document" "lambda_policy" {
         aws_sfn_state_machine.dynamodb_updater_workflow.arn,
     ]
   }
+
+  statement {
+        effect = "Allow"
+
+        actions = [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups"
+        ]
+
+        resources = ["${aws_cloudwatch_log_group.MyLambdaLogGroup.arn}:*"]
+    }
+
+    statement {
+        effect = "Allow"
+        actions = [
+        "cloudwatch:PutMetricData",
+        "logs:CreateLogDelivery",
+        "logs:GetLogDelivery",
+        "logs:UpdateLogDelivery",
+        "logs:DeleteLogDelivery",
+        "logs:ListLogDeliveries",
+        "logs:PutResourcePolicy",
+        "logs:DescribeResourcePolicies",
+        ]
+        resources = ["*"]
+    }
 }
 
 resource "aws_iam_policy" "lambda_policy" {
@@ -75,6 +102,8 @@ resource "aws_lambda_function" "upload_trigger_lambda" {
   role         = aws_iam_role.lambda_execution_role.arn
 
   filename      = "${path.module}/lambda/lambda-trigger-sm.zip"
+  source_code_hash = data.archive_file.python_zip.output_base64sha256
+  timeout = 120
 
   environment {
     variables = {
@@ -83,17 +112,16 @@ resource "aws_lambda_function" "upload_trigger_lambda" {
   }
 }
 
-resource "aws_cloudwatch_log_group" "lambda_function_log" {
+resource "aws_cloudwatch_log_group" "MyLambdaLogGroup" {
   retention_in_days = 1
   name              = "/aws/lambda/${aws_lambda_function.upload_trigger_lambda.function_name}"
 }
 
 resource "aws_cloudwatch_log_group" "MySFNLogGroup" {
-   name_prefix       = "/aws/vendedlogs/states/${aws_sfn_state_machine.dynamodb_updater_workflow.name}-"
+   name_prefix       = "/aws/vendedlogs/states/${var.sfn_name}-"
   retention_in_days = 1
-
-
 }
+
 data "aws_iam_policy_document" "sf_policy" {
   statement {
     effect = "Allow"
@@ -109,20 +137,7 @@ data "aws_iam_policy_document" "sf_policy" {
 
   statement {
     effect = "Allow"
-
     actions = [
-      "logs:CreateLogStream",
-      "logs:PutLogEvents",
-      "logs:DescribeLogGroups"
-    ]
-
-    resources = ["${aws_cloudwatch_log_group.MySFNLogGroup.arn}:*"]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "cloudwatch:PutMetricData",
       "logs:CreateLogDelivery",
       "logs:GetLogDelivery",
       "logs:UpdateLogDelivery",
@@ -130,14 +145,16 @@ data "aws_iam_policy_document" "sf_policy" {
       "logs:ListLogDeliveries",
       "logs:PutResourcePolicy",
       "logs:DescribeResourcePolicies",
+      "logs:DescribeLogGroups"
     ]
     resources = ["*"]
   }
+
 }
-# Attach a policy to the IAM role that allows PutItem in DynamoDB
+# Attach a policy to the IAM role that allows PutItem in DynamoDB and CloudWatch Logs
 resource "aws_iam_policy" "state_machine_policy" {
-  name = "dynamodb_put_policy"
-  description = "Policy to allow PutItem in DynamoDB"
+  name = "state_machine_policy"
+  description = "Policy to allow PutItem in DynamoDB and permissions for CloudWatch Logs"
   policy = data.aws_iam_policy_document.sf_policy.json
 
 }
@@ -169,7 +186,7 @@ resource "aws_iam_role_policy_attachment" "attach_state_machine_policy" {
 }
 
 resource "aws_sfn_state_machine" "dynamodb_updater_workflow" {
-  name     = "dynamodb_updater_workflow"
+  name     = var.sfn_name
   definition = jsonencode({
     Comment = "A Step Function that writes to DynamoDB",
     StartAt = "Upload",
@@ -188,12 +205,16 @@ resource "aws_sfn_state_machine" "dynamodb_updater_workflow" {
     }
   })
   role_arn = aws_iam_role.step_function_role.arn
+  logging_configuration {
+    level = "ALL"
+    include_execution_data = true
+    log_destination = "${aws_cloudwatch_log_group.MySFNLogGroup.arn}:*"
+    }
   timeouts {
-    create = "5m"
-    delete = "5m"
+    create = "1m"
+  }
   }
 
-}
 resource "aws_lambda_permission" "allow_bucket" {
   statement_id  = "AllowExecutionFromS3Bucket"
   action        = "lambda:InvokeFunction"
