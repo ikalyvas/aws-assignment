@@ -67,6 +67,7 @@ Resources:
     Properties:
       BucketName: !Sub ${BucketName}-logs
       # the target bucket does not need to have access logging enabled, therefore we can ignore the following lines
+      # However, if you want to enable access logging for the target bucket and therefore eliminate the warning in cfn-nag, uncomment the following lines, but its not recommended
       #LoggingConfiguration:
       #  DestinationBucketName: !Ref TargetLogsBucket
       #  LogFilePrefix: testing-logs
