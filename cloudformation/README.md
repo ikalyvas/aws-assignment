@@ -46,3 +46,23 @@ docker logs cfn-nag
 ```shell
 docker-compose restart cfn-nag
 ```
+
+## Solution
+### Cloudformation
+Please check the updated stack.template file in the cloudformation folder. I have added the following security features:
+- Bucket encryption
+- Bucket policy
+- Access logging for the source bucket
+
+The cfn-nag report should be clean now, except for the following warning:
+```
+cfn-nag     | | WARN W35
+cfn-nag     | |
+cfn-nag     | | Resource: ["TargetLogsBucket"]
+cfn-nag     | | Line Numbers: [66]
+cfn-nag     | |
+cfn-nag     | | S3 Bucket should have access logging configured
+cfn-nag     | |
+```
+That is because the target bucket does not need to have access logging enabled as AWS recommends, ( https://docs.aws.amazon.com/AmazonS3/latest/userguide/enable-server-access-logging.html) therefore we can ignore the following lines 
+However, if you want to enable access logging for the target bucket and therefore eliminate the warning in cfn-nag i have put in comments the configuration for the template
